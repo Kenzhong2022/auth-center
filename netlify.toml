@@ -1,0 +1,9 @@
+[build]
+  command = "pnpm run build"
+  publish = "dist"
+  functions = ".netlify/functions-internal"
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions-internal/server"
+  status = 200

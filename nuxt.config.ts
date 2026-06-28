@@ -33,6 +33,8 @@ export default defineNuxtConfig({
   },
   // 👇 添加这一段，禁用流式响应的压缩
   nitro: {
+    preset: "netlify", // 部署到Netlify核心修改
+
     compressPublicAssets: true, // 静态资源仍然可以压缩
     devProxy: {},
     // 关键：为 SSE 接口禁用压缩
