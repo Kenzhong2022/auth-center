@@ -58,8 +58,7 @@ export async function consumeCode(
     // 抛出异常，客户端ID或回调地址不匹配
     throw new Error("client_id or redirect_uri not match");
   }
-  // 一次性使用，立即删除
-  // await redis.del(key);
+  await redis.del(key);
   return data;
 }
 

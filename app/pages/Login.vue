@@ -87,7 +87,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
 
 const formRef = ref<FormInstance>();
@@ -112,26 +111,64 @@ const rules: FormRules = {
   ],
 };
 
+/**
+ * @description: 获取重定向路径，处理绝对路径和相对路径
+ * @param redirectParam 重定向参数
+ * @returns 处理后的重定向路径
+ */
+function getRedirectPath(redirectParam: string | undefined): string {
+  if (!redirectParam) return "/";
+
+  try {
+    if (
+      redirectParam.startsWith("http://") ||
+      redirectParam.startsWith("https://")
+    ) {
+      const url = new URL(redirectParam);
+      return url.pathname + url.search;
+    }
+    if (redirectParam.startsWith("/")) {
+      return redirectParam;
+    }
+    return "/" + redirectParam;
+  } catch {
+    return "/";
+  }
+}
+
 const handleLogin = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true;
-      console.log("登录:", form);
       form.client_id = "business-a";
       form.redirect_uri = "http://localhost:3000/CallBack";
-      // 接口调用
-      const res = await $fetch("/api/auth/login", {
-        method: "POST",
-        body: form,
-      }).finally(() => {
+
+      try {
+        const res = await $fetch("/api/auth/login", {
+          method: "POST",
+          body: form,
+        });
+
+        const redirect = useRoute().query.redirect; // 从路由参数中获取 redirect 查询参数
+        console.log("登录:", res, redirect);
+
+        const baseUrl = "http://localhost:3000";
+        const redirectPath = getRedirectPath(redirect as string);
+        const code = res?.data?.code;
+
+        const url = new URL("/CallBack", baseUrl);
+        url.searchParams.set("code", code || "");
+        url.searchParams.set("redirect", redirectPath || "");
+
+        console.log("跳转目标:", url.toString());
+        window.location.href = url.toString();
+      } catch (error: any) {
+        console.error("登录失败:", error);
+        ElMessage.error(error?.response?._data?.msg || "登录失败，请重试");
+      } finally {
         loading.value = false;
-      });
-      // 获取http://localhost:3001/login?redirect=http://localhost:3000/ 中的 redirect 参数
-      const redirect = useRoute().query.redirect;
-      console.log("登录:", res, redirect);
-      // 登录成功后，重定向到CallBack中并且redirect查询参数为 redirect
-      window.location.href = `http://localhost:3000/CallBack?redirect=${redirect}&code=${res!.data?.code}`;
+      }
     }
   });
 };

@@ -27,11 +27,8 @@ export default defineEventHandler(async (event): Promise<LoginResp> => {
   // 查询数据库
   const res: UserDbRow[] =
     (await sql`SELECT * FROM users WHERE email = ${email}  AND deleted_at IS NULL`) as UserDbRow[];
-  console.log(res);
   const saltRounds = 10; // 和你之前的哈希轮次保持一致
-  bcrypt.hash(password, saltRounds).then((hash: string) => {
-    console.log("加密后的哈希：", hash);
-  });
+  bcrypt.hash(password, saltRounds).then((hash: string) => {});
   // 不存在用户
   if (!res.length) {
     throw createError({
@@ -54,7 +51,7 @@ export default defineEventHandler(async (event): Promise<LoginResp> => {
     SET last_login_at = NOW() 
     WHERE id = ${user.id}
   `;
-
+  console.log("用户存在密码，密码匹配成功");
   // 4. 生成双 Token（access短期，refresh长期）
   const accessToken = generateAccessToken({
     sub: String(user.id),
@@ -67,6 +64,7 @@ export default defineEventHandler(async (event): Promise<LoginResp> => {
   // 生成授权码（可选）
   // 5. 存储授权码到 Redis
   const code = generateCode();
+  console.log("生成的授权码：");
   await storeCode(code, {
     clientId: body.client_id,
     redirectUri: body.redirect_uri,
