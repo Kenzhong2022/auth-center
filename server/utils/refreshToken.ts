@@ -8,7 +8,7 @@ import { redis } from "./redis";
  * @param clientId 客户端ID
  * @param createdAt 创建时间
  */
-interface RefreshTokenRecord {
+export interface RefreshTokenRecord {
   userId: number | string;
   clientId: string;
   createdAt: number;
@@ -42,8 +42,6 @@ export async function getRefreshToken(
 }
 
 /** 撤销刷新令牌（登出/刷新时调用） */
-export async function revokeRefreshToken(
-  refreshToken: string,
-): Promise<void> {
+export async function revokeRefreshToken(refreshToken: string): Promise<void> {
   await redis.del(`${REFRESH_TOKEN_KEY_PREFIX}${refreshToken}`);
 }

@@ -54,12 +54,10 @@ export default defineEventHandler(async (event): Promise<LoginResp> => {
   console.log("用户存在密码，密码匹配成功");
   // 4. 生成双 Token（access短期，refresh长期）
   const accessToken = generateAccessToken({
-    sub: String(user.id),
-    uuid: user.uuid,
+    userId: String(user.id),
   });
   const refreshToken = generateRefreshToken({
-    sub: String(user.id),
-    uuid: user.uuid,
+    userId: String(user.id),
   });
   // 生成授权码（可选）
   // 5. 存储授权码到 Redis
