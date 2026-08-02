@@ -4,7 +4,7 @@ import { createError } from "h3";
 import { generateAccessToken, generateRefreshToken } from "~~/server/utils/jwt";
 import type { UserDbRow } from "~~/types/database/user.type";
 import type { LoginUserVO, LoginData, LoginResp } from "~~/types/dto/auth.dto";
-import { generateCode, storeCode } from "~~/server/utils/oauthCode";
+import { generateAuthCode, saveAuthCode } from "~~/server/utils/oauthCode";
 export default defineEventHandler(async (event): Promise<LoginResp> => {
   const body = await readBody(event);
   const { sql } = setupDatabase();
@@ -63,9 +63,9 @@ export default defineEventHandler(async (event): Promise<LoginResp> => {
   });
   // 生成授权码（可选）
   // 5. 存储授权码到 Redis
-  const code = generateCode();
+  const code = generateAuthCode();
   console.log("生成的授权码：");
-  await storeCode(code, {
+  await saveAuthCode(code, {
     clientId: body.client_id,
     redirectUri: body.redirect_uri,
     userId: String(user.id),

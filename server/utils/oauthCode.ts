@@ -1,10 +1,10 @@
-// 生成uuid
+// 授权码工具：生成、存储、兑换、撤销
 // server/utils/oauthCode.ts
 import { v4 as uuidv4 } from "uuid";
 import { redis } from "./redis";
 
 /**
- * 授权码数据结构
+ * 授权码实体
  * @param userId 用户ID
  * @param clientId 客户端ID
  * @param issuer 发布者
@@ -12,7 +12,7 @@ import { redis } from "./redis";
  * @param scope 授权范围
  * @param createdAt 创建时间
  */
-interface OAuthCodeData {
+interface OAuthCode {
   userId: number | string;
   clientId: string;
   issuer?: string;
@@ -21,41 +21,43 @@ interface OAuthCodeData {
   createdAt: Date;
 }
 
-const CODE_PREFIX = "oauth:code:";
-const CODE_EXPIRE = 3000; // 5分钟过期
+const AUTH_CODE_KEY_PREFIX = "oauth:code:";
+const AUTH_CODE_EXPIRE_SECONDS = 3000; // 5分钟过期
 
 /** 生成授权码 */
-export function generateCode(): string {
+export function generateAuthCode(): string {
   return uuidv4();
 }
 
-/** 存储授权码 */
-export async function storeCode(
+/** 存储授权码到 Redis */
+export async function saveAuthCode(
   code: string,
-  data: OAuthCodeData,
+  data: OAuthCode,
 ): Promise<void> {
-  const key = `${CODE_PREFIX}${code}`;
-  await redis.set(key, JSON.stringify(data), { ex: CODE_EXPIRE });
+  const key = `${AUTH_CODE_KEY_PREFIX}${code}`;
+  await redis.set(key, JSON.stringify(data), {
+    ex: AUTH_CODE_EXPIRE_SECONDS,
+  });
 }
 
-/** 验证并消费授权码（一次性）
+/** 兑换授权码（校验客户端与回调地址，校验通过后一次性消费）
  * @param code 授权码
  * @param clientId 客户端ID
  * @param redirectUri 回调地址
- * @returns 授权码数据或null
+ * @returns 授权码实体或null（不存在时）
+ * @throws client_id 或 redirect_uri 不匹配时抛出异常
  */
-export async function consumeCode(
+export async function redeemAuthCode(
   code: string,
   clientId: string,
   redirectUri: string,
-): Promise<OAuthCodeData | null> {
-  const key = `${CODE_PREFIX}${code}`;
+): Promise<OAuthCode | null> {
+  const key = `${AUTH_CODE_KEY_PREFIX}${code}`;
   const raw = await redis.get(key);
   if (!raw) return null; // 授权码不存在
-  const data: OAuthCodeData = raw as OAuthCodeData;
+  const data = raw as OAuthCode;
   // 校验客户端和回调地址
   if (data.clientId !== clientId || data.redirectUri !== redirectUri) {
-    // 抛出异常，客户端ID或回调地址不匹配
     throw new Error("client_id or redirect_uri not match");
   }
   await redis.del(key);
@@ -63,6 +65,6 @@ export async function consumeCode(
 }
 
 /** 手动撤销授权码 */
-export async function revokeCode(code: string): Promise<void> {
-  await redis.del(`${CODE_PREFIX}${code}`);
+export async function revokeAuthCode(code: string): Promise<void> {
+  await redis.del(`${AUTH_CODE_KEY_PREFIX}${code}`);
 }
