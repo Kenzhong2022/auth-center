@@ -2,12 +2,12 @@
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: false },
+  routeRules: {
+    "/": { redirect: "/login" },
+  },
+
   runtimeConfig: {
     // 私有配置：只有服务端能访问，客户端永远看不到
-    deepseek: {
-      apiKey: process.env.DEEPSEEK_API_KEY,
-      baseURL: process.env.DEEPSEEK_BASE_URL,
-    },
     databaseUrl: process.env.NUXT_DATABASE_URL,
 
     // 公共配置：客户端也能访问（这里不要放任何敏感信息！）
@@ -22,26 +22,13 @@ export default defineNuxtConfig({
     },
   },
   modules: ["@pinia/nuxt", "@element-plus/nuxt", "@nuxtjs/tailwindcss"],
-  vite: {
-    optimizeDeps: {
-      include: ["dayjs", "dayjs/plugin/*.js"],
-    },
-  },
   elementPlus: {
     // 自动导入所有组件
     importStyle: "scss",
   },
-  // 👇 添加这一段，禁用流式响应的压缩
+  // 部署到 Netlify（dev 不受影响）
   nitro: {
-    preset: "netlify", // 部署到Netlify核心修改
-
-    compressPublicAssets: true, // 静态资源仍然可以压缩
-    devProxy: {},
-    // 关键：为 SSE 接口禁用压缩
-    routeRules: {
-      "/api/chat/stream": {
-        compress: false, // 禁用这个接口的压缩
-      },
-    },
+    preset: "netlify",
+    compressPublicAssets: true,
   },
 });

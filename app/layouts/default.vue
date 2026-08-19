@@ -31,18 +31,10 @@
 
     <!-- 右侧内容区，统一使用前进动画 -->
     <div class="content-wrap">
-      <NuxtPage :transition="transitionConfig" />
+      <slot />
     </div>
   </div>
 </template>
-
-<script setup>
-// 固定使用 slide-forward 动画，所有切换统一右进左出
-const transitionConfig = {
-  name: "slide-forward",
-  mode: "out-in",
-};
-</script>
 
 <style lang="scss">
 @use "sass:map";

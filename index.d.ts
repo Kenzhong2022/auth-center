@@ -4,10 +4,6 @@ declare module "nuxt/schema" {
       accessSecret: string;
       refreshSecret: string;
     };
-    deepseek: {
-      apiKey: string;
-      baseURL: string;
-    };
     databaseUrl: string;
   }
 }

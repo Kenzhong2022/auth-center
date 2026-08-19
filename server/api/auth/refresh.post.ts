@@ -1,8 +1,10 @@
 import {
-  generateAccessToken,
-  generateRefreshToken,
+  signAccessToken,
+  signRefreshToken,
   verifyRefreshToken,
+  ACCESS_TOKEN_TTL_SECONDS,
 } from "~~/server/utils/jwt";
+import type { SignTokenPayload } from "~~/server/utils/jwt";
 import {
   saveRefreshToken,
   getRefreshToken,
@@ -43,15 +45,13 @@ interface RefreshErrorResponse {
   error: "invalid_refresh_token" | "client_mismatch";
 }
 
-const ACCESS_TOKEN_EXPIRES_IN = 2 * 60 * 60; // 2小时过期
-
 export default defineEventHandler(
   async (event): Promise<RefreshResponse | RefreshErrorResponse> => {
     const body = await readBody<RefreshRequest>(event);
     const { refresh_token, client_id } = body;
 
     // 1. JWT 签名校验（过期/伪造在此抛出）
-    let payload: { userId: number | string };
+    let payload;
     try {
       payload = verifyRefreshToken(refresh_token);
     } catch (err) {
@@ -83,10 +83,13 @@ export default defineEventHandler(
     // 4. 轮换：立即撤销旧 refresh_token
     await revokeRefreshToken(refresh_token);
 
-    // 5. 生成新 token
-    const newPayload = { userId: payload.userId };
-    const access_token = generateAccessToken(newPayload);
-    const new_refresh_token = generateRefreshToken(newPayload);
+    // 5. 生成新 token（继承原 payload 的角色；旧版无 role 的存量 token 降级为 guest）
+    const newPayload: SignTokenPayload = {
+      userId: payload.userId,
+      role: payload.role ?? "guest",
+    };
+    const access_token = signAccessToken(newPayload);
+    const new_refresh_token = signRefreshToken(newPayload);
 
     // 6. 新 refresh_token 入库
     await saveRefreshToken(new_refresh_token, {
@@ -100,7 +103,7 @@ export default defineEventHandler(
       access_token,
       refresh_token: new_refresh_token,
       token_type: "Bearer",
-      expires_in: ACCESS_TOKEN_EXPIRES_IN,
+      expires_in: ACCESS_TOKEN_TTL_SECONDS,
       id_token: JSON.stringify(newPayload),
     };
   },

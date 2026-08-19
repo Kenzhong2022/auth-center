@@ -1,14 +1,26 @@
 import { setupDatabase } from "~~/server/utils/database";
+import { saveSession } from "~~/server/utils/session";
 import bcrypt from "bcrypt";
 import { createError } from "h3";
-import { generateAccessToken, generateRefreshToken } from "~~/server/utils/jwt";
-import type { UserDbRow } from "~~/types/database/user.type";
-import type { LoginUserVO, LoginData, LoginResp } from "~~/types/dto/auth.dto";
-import { generateAuthCode, saveAuthCode } from "~~/server/utils/oauthCode";
+import { signAccessToken, ACCESS_TOKEN_TTL_SECONDS } from "~~/server/utils/jwt";
+import type { UserWithRoleRow, RoleCode } from "~~/types/database/user.type";
+import type { LoginResp } from "~~/types/dto/auth.dto";
+/**
+ * 认证中心登录接口（纯认证，不签发业务 token）
+ * url: /api/auth/login
+ *
+ * 职责边界（OAuth 授权码模式各接口分工）:
+ *   - 本接口: 邮箱密码校验 + 种认证中心会话 cookie（authorize 据此识别已登录用户）
+ *   - /api/auth/authorize: 已登录会话 → 发放授权码
+ *   - /api/auth/token: 授权码 → 业务方 access_token / refresh_token
+ *
+ * 因此本接口不返回 access_token/refresh_token/code，
+ * 登录页登录成功后统一回跳 authorize 走发码流程
+ */
 export default defineEventHandler(async (event): Promise<LoginResp> => {
   const body = await readBody(event);
   const { sql } = setupDatabase();
-  const { email, password, client_id, redirect_uri } = body;
+  const { email, password } = body;
   if (!email || !password) {
     throw createError({
       statusCode: 400,
@@ -16,75 +28,58 @@ export default defineEventHandler(async (event): Promise<LoginResp> => {
     });
   }
 
-  // 验证客户端参数
-  if (!body.client_id || !body.redirect_uri) {
-    throw createError({
-      statusCode: 400,
-      message: "缺少 client_id 或 redirect_uri 参数",
-    });
-  }
+  // 查询用户（联查角色编码，role_id 为空或角色被删时降级为 guest）
+  const res: UserWithRoleRow[] = (await sql`
+    SELECT u.*, r.code AS role_code
+    FROM users u
+    LEFT JOIN roles r ON r.id = u.role_id
+    WHERE u.email = ${email} AND u.deleted_at IS NULL
+  `) as UserWithRoleRow[];
 
-  // 查询数据库
-  const res: UserDbRow[] =
-    (await sql`SELECT * FROM users WHERE email = ${email}  AND deleted_at IS NULL`) as UserDbRow[];
-  const saltRounds = 10; // 和你之前的哈希轮次保持一致
-  bcrypt.hash(password, saltRounds).then((hash: string) => {});
-  // 不存在用户
-  if (!res.length) {
+  const user = res[0];
+  if (!user) {
     throw createError({
       statusCode: 400,
       message: "用户不存在",
     });
   }
-
-  const user = res[0] as UserDbRow;
   const isMatch = await bcrypt.compare(password, user.password_hash);
   if (!isMatch) {
     throw createError({
       statusCode: 400,
       message: "密码错误",
     });
-  } // ========== 密码匹配成功，后续逻辑写这里 ==========
-  // 3. 更新最后登录时间 last_login_at
+  }
+
+  const role: RoleCode = user.role_code ?? "guest";
+  // 更新最后登录时间 last_login_at
   await sql`
-    UPDATE users 
-    SET last_login_at = NOW() 
+    UPDATE users
+    SET last_login_at = NOW()
     WHERE id = ${user.id}
   `;
-  console.log("用户存在密码，密码匹配成功");
-  // 4. 生成双 Token（access短期，refresh长期）
-  const accessToken = generateAccessToken({
+
+  // 种认证中心自身会话 cookie（复用带 role 的 access token，authorize 据此发码）
+  const sessionToken = signAccessToken({
     userId: String(user.id),
+    role,
   });
-  const refreshToken = generateRefreshToken({
-    userId: String(user.id),
+  // 会话写入 Redis（有状态化）：authorize 校验存在性，登出/封号可即时吊销
+  await saveSession(sessionToken);
+  setCookie(event, "auth_session", sessionToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: ACCESS_TOKEN_TTL_SECONDS,
   });
-  // 生成授权码（可选）
-  // 5. 存储授权码到 Redis
-  const code = generateAuthCode();
-  console.log("生成的授权码：");
-  await saveAuthCode(code, {
-    clientId: body.client_id,
-    redirectUri: body.redirect_uri,
-    userId: String(user.id),
-    createdAt: new Date(),
-  });
+
   return {
     code: 200,
     msg: "登录成功",
     data: {
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      token_type: "Bearer",
-      expires_in: 1209600,
-      code,
       user: {
-        uuid: user.uuid,
-        nickname: user.nickname,
-        avatar: user.avatar,
-        email: user.email,
-        phone: user.phone,
-        status: user.status,
+        ...user,
+        role,
       },
     },
   };

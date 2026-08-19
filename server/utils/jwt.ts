@@ -1,63 +1,96 @@
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
+import type { RoleCode } from "~~/types/database/user.type";
 
-/** 签发时传入的业务 payload（仅 userId，jti/iat/exp 由 generateXxx 内部注入） */
-interface TokenPayload {
-  userId: number | string;
+// ============================================
+// 有效期配置（字面量给 jsonwebtoken，秒数常量给接口响应）
+// ============================================
+
+/** access_token 有效期（jsonwebtoken 格式） */
+const ACCESS_TOKEN_TTL = "2h";
+/** refresh_token 有效期（jsonwebtoken 格式） */
+const REFRESH_TOKEN_TTL = "7d";
+
+/** access_token 有效期秒数（token/refresh 接口 expires_in 字段使用） */
+export const ACCESS_TOKEN_TTL_SECONDS = 2 * 60 * 60;
+/** refresh_token 有效期秒数 */
+export const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+// ============================================
+// payload 类型
+// ============================================
+
+/** 签发 token 时传入的业务 payload（jti/iat/exp 由 signXxx 内部注入） */
+export interface SignTokenPayload {
+  /** 用户 ID（bigint 经 Neon 驱动转为字符串） */
+  userId: string;
+  /** 角色编码（roles.code），业务方据此做服务端鉴权 */
+  role: RoleCode;
 }
 
-/** 校验通过后返回的完整 payload
- *  - jti: token 唯一标识（签发时注入，可用于黑名单撤销）
- *  - iat: 签发时间（秒级时间戳，jsonwebtoken 自动注入）
- *  - exp: 过期时间（秒级时间戳，jsonwebtoken 自动注入）
+/**
+ * 校验通过后返回的完整 payload
+ * - jti: token 唯一标识（签发时注入，可用于黑名单撤销）
+ * - iat/exp: 签发/过期时间（秒级时间戳，jsonwebtoken 自动注入）
+ * - role: 可选——兼容本次改造前签发的存量旧 token（无 role 声明）
  */
-interface VerifiedTokenPayload {
-  userId: number | string;
+export interface VerifiedTokenPayload {
+  userId: string;
+  role?: RoleCode;
   jti: string;
   iat: number;
   exp: number;
 }
 
-/** 注入 jti 声明，确保即使 payload 和签发时间相同，JWT 也唯一
- *  - 解决同一秒内连续签发产生相同 token 的问题（如快速连点刷新）
- *  - jti 也是 JWT 标准声明，用于唯一标识一个 token
+// ============================================
+// 签发
+// ============================================
+
+/**
+ * 签发短期 access_token（默认 2h）
+ * @param payload 业务声明（userId + role）
  */
-function withJti(payload: TokenPayload): TokenPayload & { jti: string } {
+export function signAccessToken(payload: SignTokenPayload): string {
+  const config = useRuntimeConfig();
+  return jwt.sign(withJti(payload), config.jwt.accessSecret, {
+    expiresIn: ACCESS_TOKEN_TTL,
+  });
+}
+
+/**
+ * 签发长期 refresh_token（默认 7d，仅用于刷新 access_token）
+ * @param payload 业务声明（userId + role，刷新时原样继承）
+ */
+export function signRefreshToken(payload: SignTokenPayload): string {
+  const config = useRuntimeConfig();
+  return jwt.sign(withJti(payload), config.jwt.refreshSecret, {
+    expiresIn: REFRESH_TOKEN_TTL,
+  });
+}
+
+/** 注入 jti 标准声明，确保同一秒内连续签发也产生唯一 token（如快速连点刷新） */
+function withJti(payload: SignTokenPayload): SignTokenPayload & { jti: string } {
   return { ...payload, jti: uuidv4() };
 }
 
-// 生成短期 access_token 2小时
-export function generateAccessToken(payload: TokenPayload) {
-  const config = useRuntimeConfig();
-  return jwt.sign(withJti(payload), config.jwt.accessSecret, {
-    expiresIn: "2h",
-  });
-}
+// ============================================
+// 校验
+// ============================================
 
-// 生成长期 refresh_token 7天
-export function generateRefreshToken(payload: TokenPayload) {
-  const config = useRuntimeConfig();
-  return jwt.sign(withJti(payload), config.jwt.refreshSecret, {
-    expiresIn: "7d",
-  });
-}
-
-/** 校验 access_token，返回完整 payload（含 jti/iat/exp）或抛出异常
- *  @throws TokenExpiredError token 已过期
- *  @throws JsonWebTokenError 签名无效/格式错误
+/**
+ * 校验 access_token 签名与有效期，返回完整 payload
+ * @throws TokenExpiredError 已过期 / JsonWebTokenError 签名无效或格式错误
  */
 export function verifyAccessToken(token: string): VerifiedTokenPayload {
   const config = useRuntimeConfig();
-  const decoded = jwt.verify(token, config.jwt.accessSecret);
-  return decoded as VerifiedTokenPayload;
+  return jwt.verify(token, config.jwt.accessSecret) as VerifiedTokenPayload;
 }
 
-/** 校验 refresh_token，返回完整 payload（含 jti/iat/exp）或抛出异常
- *  @throws TokenExpiredError token 已过期
- *  @throws JsonWebTokenError 签名无效/格式错误
+/**
+ * 校验 refresh_token 签名与有效期，返回完整 payload
+ * @throws TokenExpiredError 已过期 / JsonWebTokenError 签名无效或格式错误
  */
 export function verifyRefreshToken(token: string): VerifiedTokenPayload {
   const config = useRuntimeConfig();
-  const decoded = jwt.verify(token, config.jwt.refreshSecret);
-  return decoded as VerifiedTokenPayload;
+  return jwt.verify(token, config.jwt.refreshSecret) as VerifiedTokenPayload;
 }

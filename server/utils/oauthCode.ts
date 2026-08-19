@@ -2,6 +2,7 @@
 // server/utils/oauthCode.ts
 import { v4 as uuidv4 } from "uuid";
 import { redis } from "./redis";
+import type { RoleCode } from "~~/types/database/user.type";
 
 /**
  * 授权码实体
@@ -9,11 +10,13 @@ import { redis } from "./redis";
  * @param clientId 客户端ID
  * @param issuer 发布者
  * @param redirectUri 回调地址
+ * @param role 用户角色编码（兑换 token 时透传进 JWT payload）
  * @param scope 授权范围
  * @param createdAt 创建时间
  */
 interface OAuthCode {
-  userId: number | string;
+  userId: string;
+  role: RoleCode;
   clientId: string;
   issuer?: string;
   redirectUri: string;
@@ -24,12 +27,20 @@ interface OAuthCode {
 const AUTH_CODE_KEY_PREFIX = "oauth:code:";
 const AUTH_CODE_EXPIRE_SECONDS = 3000; // 5分钟过期
 
-/** 生成授权码 */
+/**
+ * @returns 生成的授权码（UUIDv4）
+ * @description 用于客户端请求授权时，生成唯一标识，后续兑换时校验客户端与回调地址
+ */
 export function generateAuthCode(): string {
   return uuidv4();
 }
 
-/** 存储授权码到 Redis */
+/**
+ * @param code 授权码
+ * @param data 授权码实体
+ * @description 存储授权码到 Redis
+ * @throws 存储失败时抛出异常
+ */
 export async function saveAuthCode(
   code: string,
   data: OAuthCode,
@@ -40,12 +51,12 @@ export async function saveAuthCode(
   });
 }
 
-/** 兑换授权码（校验客户端与回调地址，校验通过后一次性消费）
+/**
+ * @description 兑换授权码（校验客户端与回调地址，校验通过后一次性消费）
  * @param code 授权码
  * @param clientId 客户端ID
  * @param redirectUri 回调地址
  * @returns 授权码实体或null（不存在时）
- * @throws client_id 或 redirect_uri 不匹配时抛出异常
  */
 export async function redeemAuthCode(
   code: string,
@@ -64,7 +75,11 @@ export async function redeemAuthCode(
   return data;
 }
 
-/** 手动撤销授权码 */
+/**
+ * @param code 授权码
+ * @description 手动撤销授权码
+ * @throws 撤销失败时抛出异常
+ */
 export async function revokeAuthCode(code: string): Promise<void> {
   await redis.del(`${AUTH_CODE_KEY_PREFIX}${code}`);
 }

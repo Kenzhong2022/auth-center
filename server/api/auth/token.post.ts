@@ -1,6 +1,12 @@
-import { generateAccessToken, generateRefreshToken } from "~~/server/utils/jwt";
+import { setupDatabase } from "~~/server/utils/database";
+import {
+  signAccessToken,
+  signRefreshToken,
+  ACCESS_TOKEN_TTL_SECONDS,
+} from "~~/server/utils/jwt";
 import { redeemAuthCode } from "~~/server/utils/oauthCode";
 import { saveRefreshToken } from "~~/server/utils/refreshToken";
+import type { SignTokenPayload } from "~~/server/utils/jwt";
 
 /**
  * token 接口请求参数
@@ -50,12 +56,23 @@ export default defineEventHandler(
       setResponseStatus(event, 400);
       return { error: "invalid_code" };
     }
-    // 生成JWT长短token
-    const payload = { userId: codeInfo.userId };
-    console.log("[token] 生成 token, payload:", payload);
-    const access_token = generateAccessToken(payload);
-    const refresh_token = generateRefreshToken(payload);
-    const expires_in = 2 * 60 * 60; // 2小时过期
+    // 授权码信息中携带 role（登录时写入）；缺失时回查数据库兜底
+    const { sql } = setupDatabase();
+    let role = codeInfo.role;
+    if (!role) {
+      const rows = (await sql`
+        SELECT r.code AS role_code
+        FROM users u LEFT JOIN roles r ON r.id = u.role_id
+        WHERE u.id = ${codeInfo.userId}
+      `) as unknown as { role_code: string | null }[];
+      role = (rows[0]?.role_code ?? "guest") as SignTokenPayload["role"];
+    }
+
+    // 生成JWT长短token（payload 携带角色编码）
+    const payload: SignTokenPayload = { userId: codeInfo.userId, role };
+    const access_token = signAccessToken(payload);
+    const refresh_token = signRefreshToken(payload);
+    const expires_in = ACCESS_TOKEN_TTL_SECONDS;
 
     await saveRefreshToken(refresh_token, {
       userId: codeInfo.userId,

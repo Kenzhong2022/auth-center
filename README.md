@@ -1,75 +1,34 @@
-# Nuxt Minimal Starter
+# auth-center
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+认证中心：独立部署的登录服务（Netlify），为业务应用提供 OAuth 2.0 授权码模式登录。
 
-## Setup
+## 功能
 
-Make sure to install dependencies:
+- 用户注册 / 登录（bcrypt 密码加密）
+- OAuth 2.0 授权码发放与兑换（`/api/auth/authorize`、`/api/auth/token`）
+- JWT access / refresh 双令牌签发与刷新
+- Upstash Redis 存储授权码与刷新令牌白名单
+
+## 启动
 
 ```bash
-# npm
-npm install
-
-# pnpm
 pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
+pnpm dev --port 3001
 ```
 
-## Development Server
+> 端口必须显式指定为 3001（默认 3000 会与业务应用 my-nuxt-app 冲突）。
 
-Start the development server on `http://localhost:3000`:
+## 环境变量（.env）
 
-```bash
-# npm
-npm run dev
+| 变量 | 说明 |
+|---|---|
+| `NUXT_DATABASE_URL` | Neon PostgreSQL 连接串 |
+| `NUXT_JWT_ACCESS_SECRET` | access token 签名密钥（需与业务应用一致） |
+| `NUXT_JWT_REFRESH_SECRET` | refresh token 签名密钥 |
 
-# pnpm
-pnpm dev
+## 业务应用对接
 
-# yarn
-yarn dev
+业务应用（my-nuxt-app）通过 `LOGIN_BASE` 指向本服务：
 
-# bun
-bun run dev
-```
-
-## Production
-
-Build the application for production:
-
-```bash
-# npm
-npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+- 线上：`https://auth-center.netlify.app`
+- 本地联调：`http://localhost:3001`
