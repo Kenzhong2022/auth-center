@@ -1,6 +1,6 @@
 import { setupDatabase } from "~~/server/utils/database";
 import { saveSession } from "~~/server/utils/session";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { createError } from "h3";
 import { signAccessToken, ACCESS_TOKEN_TTL_SECONDS } from "~~/server/utils/jwt";
 import type { UserWithRoleRow, RoleCode } from "~~/types/database/user.type";
