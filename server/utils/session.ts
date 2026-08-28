@@ -19,7 +19,7 @@ const SESSION_KEY_PREFIX = "auth:session:";
 export async function saveSession(
   token: string,
 ): Promise<VerifiedTokenPayload> {
-  const payload = verifyAccessToken(token);
+  const payload = await verifyAccessToken(token);
   await redis.set(
     `${SESSION_KEY_PREFIX}${payload.jti}`,
     JSON.stringify({ userId: payload.userId, role: payload.role }),

@@ -70,8 +70,8 @@ export default defineEventHandler(
 
     // 生成JWT长短token（payload 携带角色编码）
     const payload: SignTokenPayload = { userId: codeInfo.userId, role };
-    const access_token = signAccessToken(payload);
-    const refresh_token = signRefreshToken(payload);
+    const access_token = await signAccessToken(payload);
+    const refresh_token = await signRefreshToken(payload);
     const expires_in = ACCESS_TOKEN_TTL_SECONDS;
 
     await saveRefreshToken(refresh_token, {

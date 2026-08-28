@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   // 校验 access_token
   let payload: { userId: number | string };
   try {
-    payload = verifyAccessToken(token);
+    payload = await verifyAccessToken(token);
   } catch (err) {
     console.log("[auth] access_token 校验失败:", err);
     setResponseStatus(event, 401);

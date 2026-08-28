@@ -53,7 +53,7 @@ export default defineEventHandler(
     // 1. JWT 签名校验（过期/伪造在此抛出）
     let payload;
     try {
-      payload = verifyRefreshToken(refresh_token);
+      payload = await verifyRefreshToken(refresh_token);
     } catch (err) {
       console.log("[refresh] refresh_token JWT 校验失败:", err);
       setResponseStatus(event, 401);
@@ -88,8 +88,8 @@ export default defineEventHandler(
       userId: payload.userId,
       role: payload.role ?? "guest",
     };
-    const access_token = signAccessToken(newPayload);
-    const new_refresh_token = signRefreshToken(newPayload);
+    const access_token = await signAccessToken(newPayload);
+    const new_refresh_token = await signRefreshToken(newPayload);
 
     // 6. 新 refresh_token 入库
     await saveRefreshToken(new_refresh_token, {

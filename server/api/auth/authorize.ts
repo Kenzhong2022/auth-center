@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
   let payload: Awaited<ReturnType<typeof verifyAccessToken>> | null = null;
   if (session) {
     try {
-      const verified = verifyAccessToken(session);
+      const verified = await verifyAccessToken(session);
       // 验签通过后还需 Redis 会话存在（登出即删键，即时失效）
       payload = (await isSessionActive(verified.jti)) ? verified : null;
     } catch {

@@ -60,7 +60,7 @@ export default defineEventHandler(async (event): Promise<LoginResp> => {
   `;
 
   // 种认证中心自身会话 cookie（复用带 role 的 access token，authorize 据此发码）
-  const sessionToken = signAccessToken({
+  const sessionToken = await signAccessToken({
     userId: String(user.id),
     role,
   });

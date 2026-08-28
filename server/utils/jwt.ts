@@ -1,14 +1,14 @@
-import jwt from "jsonwebtoken";
+import { SignJWT, jwtVerify } from "jose";
 import { v4 as uuidv4 } from "uuid";
 import type { RoleCode } from "~~/types/database/user.type";
 
 // ============================================
-// 有效期配置（字面量给 jsonwebtoken，秒数常量给接口响应）
+// 有效期配置（jose 格式字符串，秒数常量给接口响应）
 // ============================================
 
-/** access_token 有效期（jsonwebtoken 格式） */
+/** access_token 有效期（jose 格式） */
 const ACCESS_TOKEN_TTL = "2h";
-/** refresh_token 有效期（jsonwebtoken 格式） */
+/** refresh_token 有效期（jose 格式） */
 const REFRESH_TOKEN_TTL = "7d";
 
 /** access_token 有效期秒数（token/refresh 接口 expires_in 字段使用） */
@@ -31,7 +31,7 @@ export interface SignTokenPayload {
 /**
  * 校验通过后返回的完整 payload
  * - jti: token 唯一标识（签发时注入，可用于黑名单撤销）
- * - iat/exp: 签发/过期时间（秒级时间戳，jsonwebtoken 自动注入）
+ * - iat/exp: 签发/过期时间（秒级时间戳，jose 自动注入）
  * - role: 可选——兼容本次改造前签发的存量旧 token（无 role 声明）
  */
 export interface VerifiedTokenPayload {
@@ -42,6 +42,11 @@ export interface VerifiedTokenPayload {
   exp: number;
 }
 
+/** 将字符串密钥编码为 jose HS256 签名所需的 Uint8Array */
+function toSecretKey(secret: string): Uint8Array {
+  return new TextEncoder().encode(secret);
+}
+
 // ============================================
 // 签发
 // ============================================
@@ -50,27 +55,32 @@ export interface VerifiedTokenPayload {
  * 签发短期 access_token（默认 2h）
  * @param payload 业务声明（userId + role）
  */
-export function signAccessToken(payload: SignTokenPayload): string {
+export async function signAccessToken(
+  payload: SignTokenPayload,
+): Promise<string> {
   const config = useRuntimeConfig();
-  return jwt.sign(withJti(payload), config.jwt.accessSecret, {
-    expiresIn: ACCESS_TOKEN_TTL,
-  });
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setJti(uuidv4())
+    .setExpirationTime(ACCESS_TOKEN_TTL)
+    .sign(toSecretKey(config.jwt.accessSecret));
 }
 
 /**
  * 签发长期 refresh_token（默认 7d，仅用于刷新 access_token）
  * @param payload 业务声明（userId + role，刷新时原样继承）
  */
-export function signRefreshToken(payload: SignTokenPayload): string {
+export async function signRefreshToken(
+  payload: SignTokenPayload,
+): Promise<string> {
   const config = useRuntimeConfig();
-  return jwt.sign(withJti(payload), config.jwt.refreshSecret, {
-    expiresIn: REFRESH_TOKEN_TTL,
-  });
-}
-
-/** 注入 jti 标准声明，确保同一秒内连续签发也产生唯一 token（如快速连点刷新） */
-function withJti(payload: SignTokenPayload): SignTokenPayload & { jti: string } {
-  return { ...payload, jti: uuidv4() };
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setJti(uuidv4())
+    .setExpirationTime(REFRESH_TOKEN_TTL)
+    .sign(toSecretKey(config.jwt.refreshSecret));
 }
 
 // ============================================
@@ -79,18 +89,30 @@ function withJti(payload: SignTokenPayload): SignTokenPayload & { jti: string } 
 
 /**
  * 校验 access_token 签名与有效期，返回完整 payload
- * @throws TokenExpiredError 已过期 / JsonWebTokenError 签名无效或格式错误
+ * @throws JWTExpired（jose）已过期 / JWTInvalid 签名无效或格式错误
  */
-export function verifyAccessToken(token: string): VerifiedTokenPayload {
+export async function verifyAccessToken(
+  token: string,
+): Promise<VerifiedTokenPayload> {
   const config = useRuntimeConfig();
-  return jwt.verify(token, config.jwt.accessSecret) as VerifiedTokenPayload;
+  const { payload } = await jwtVerify(
+    token,
+    toSecretKey(config.jwt.accessSecret),
+  );
+  return payload as unknown as VerifiedTokenPayload;
 }
 
 /**
  * 校验 refresh_token 签名与有效期，返回完整 payload
- * @throws TokenExpiredError 已过期 / JsonWebTokenError 签名无效或格式错误
+ * @throws JWTExpired（jose）已过期 / JWTInvalid 签名无效或格式错误
  */
-export function verifyRefreshToken(token: string): VerifiedTokenPayload {
+export async function verifyRefreshToken(
+  token: string,
+): Promise<VerifiedTokenPayload> {
   const config = useRuntimeConfig();
-  return jwt.verify(token, config.jwt.refreshSecret) as VerifiedTokenPayload;
+  const { payload } = await jwtVerify(
+    token,
+    toSecretKey(config.jwt.refreshSecret),
+  );
+  return payload as unknown as VerifiedTokenPayload;
 }
