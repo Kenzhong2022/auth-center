@@ -8,7 +8,10 @@ const SESSION_COOKIE = "auth_session";
 const clientDB = {
   "business-a": {
     client_secret: "xxx-secret-key",
-    redirect_uris: ["http://localhost:3000/CallBack"],
+    redirect_uris: [
+      "http://localhost:3000/CallBack",
+      "https://kk-shop-app.netlify.app/CallBack",
+    ],
   },
 };
 
