@@ -1,3 +1,4 @@
+import { setupDatabase } from "~~/server/utils/database";
 import { verifyAccessToken } from "~~/server/utils/jwt";
 import { generateAuthCode, saveAuthCode } from "~~/server/utils/oauthCode";
 import { isSessionActive } from "~~/server/utils/session";
@@ -5,15 +6,32 @@ import { isSessionActive } from "~~/server/utils/session";
 /** 认证中心自身会话 cookie 名（登录接口种下，见 server/api/auth/login.ts） */
 const SESSION_COOKIE = "auth_session";
 
-const clientDB = {
-  "business-a": {
-    client_secret: "xxx-secret-key",
-    redirect_uris: [
-      "http://localhost:3000/CallBack",
-      "https://kk-shop-app.netlify.app/CallBack",
-    ],
-  },
-};
+/**
+ * oauth_clients 表行结构
+ * @param client_id 客户端ID（主键）
+ * @param redirect_uris 回调地址白名单（text[] 数组，线上可直接改表实时生效）
+ */
+interface OAuthClientRow {
+  client_id: string;
+  redirect_uris: string[];
+}
+
+/**
+ * 查询 OAuth 客户端及其回调白名单
+ * @param clientId 客户端ID
+ * @returns 客户端行；不存在或已被停用（enabled = false）时返回 null
+ */
+async function getOAuthClient(
+  clientId: string,
+): Promise<OAuthClientRow | null> {
+  const { sql } = setupDatabase();
+  const rows = (await sql`
+    SELECT client_id, redirect_uris
+    FROM oauth_clients
+    WHERE client_id = ${clientId} AND enabled = true
+  `) as unknown as OAuthClientRow[];
+  return rows[0] ?? null;
+}
 
 /**
  * 未登录时跳转登录页，原样携带 OAuth 参数，
@@ -46,7 +64,7 @@ export default defineEventHandler(async (event) => {
   const { client_id, response_type, redirect_uri, redirect } = query;
 
   if (response_type !== "code") return { error: "仅支持 code 模式" };
-  const client = clientDB[client_id as keyof typeof clientDB];
+  const client = await getOAuthClient(client_id as string);
   if (!client) return { error: "非法客户端" };
   if (!client.redirect_uris.includes(redirect_uri as string))
     return { error: "非法回调地址" };
