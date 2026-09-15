@@ -27,14 +27,14 @@ interface RefreshRequest {
  * @param refresh_token 新的长期刷新令牌（轮换后旧令牌失效）
  * @param token_type 令牌类型
  * @param expires_in 过期时间（秒）
- * @param id_token 包含用户信息的ID令牌
+ * @param id_token 包含用户信息的ID令牌（明文对象；与 token 接口一致）
  */
 interface RefreshResponse {
   access_token: string;
   refresh_token: string;
   token_type: "Bearer";
   expires_in: number;
-  id_token: string;
+  id_token: SignTokenPayload;
 }
 
 /**
@@ -104,7 +104,7 @@ export default defineEventHandler(
       refresh_token: new_refresh_token,
       token_type: "Bearer",
       expires_in: ACCESS_TOKEN_TTL_SECONDS,
-      id_token: JSON.stringify(newPayload),
+      id_token: newPayload,
     };
   },
 );

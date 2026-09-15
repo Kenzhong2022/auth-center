@@ -26,14 +26,15 @@ interface TokenRequest {
  * @param refresh_token 长期刷新令牌
  * @param token_type 令牌类型
  * @param expires_in 过期时间（秒）
- * @param id_token 包含用户信息的ID令牌
+ * @param id_token 包含用户信息的ID令牌（明文对象；本项目未做 OIDC 签名，
+ *                 角色等权威声明以 access_token 验签结果为准）
  */
 interface TokenResponse {
   access_token: string;
   refresh_token: string;
   token_type: "Bearer";
   expires_in: number;
-  id_token: string;
+  id_token: SignTokenPayload;
 }
 
 /**
@@ -86,7 +87,7 @@ export default defineEventHandler(
       refresh_token,
       token_type: "Bearer",
       expires_in,
-      id_token: JSON.stringify(payload),
+      id_token: payload,
     };
     console.log("[token] 返回响应:", {
       ...response,
