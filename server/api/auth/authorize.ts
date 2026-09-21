@@ -102,7 +102,7 @@ export default defineEventHandler(async (event) => {
   const client = await getOAuthClient(client_id as string);
   if (!client) return { error: "非法客户端" };
   if (!isAllowedRedirectUri(client.redirect_uris, redirect_uri as string))
-    return { error: "非法回调地址" };
+    return { error: `非法回调地址：${redirect_uri} 未在数据库白名单中匹配` };
 
   // 读取会话：过期/伪造/缺失/已被吊销统一视为未登录
   const session = getCookie(event, SESSION_COOKIE);
