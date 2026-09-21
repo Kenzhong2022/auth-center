@@ -34,6 +34,41 @@ async function getOAuthClient(
 }
 
 /**
+ * 校验回调地址是否在白名单内
+ * 规则：白名单条目整串精确匹配优先；未命中时放行同一主域名的子域名
+ * （适配 Cloudflare Pages / Netlify 预览部署生成的 hash 子域名），
+ * 但协议和路径必须与白名单条目完全一致，防止开放重定向
+ * @param whitelist 白名单地址数组（来自 oauth_clients.redirect_uris）
+ * @param redirectUri 业务方传入的回调地址
+ * @returns 是否允许回调
+ */
+function isAllowedRedirectUri(
+  whitelist: string[],
+  redirectUri: string,
+): boolean {
+  let target: URL;
+  try {
+    target = new URL(redirectUri);
+  } catch {
+    return false;
+  }
+  return whitelist.some((allowed) => {
+    let base: URL;
+    try {
+      base = new URL(allowed);
+    } catch {
+      return false;
+    }
+    // host 含端口，endsWith 带 "." 边界保证只放行真正的子域名
+    // （如 061113ef.my-nuxt-app-cw9.pages.dev），拼接域名不会误放行
+    const hostMatch =
+      target.protocol === base.protocol &&
+      (target.host === base.host || target.host.endsWith(`.${base.host}`));
+    return hostMatch && target.pathname === base.pathname;
+  });
+}
+
+/**
  * 未登录时跳转登录页，原样携带 OAuth 参数，
  * 登录成功后登录页会带着参数回跳本接口继续发放授权码
  */
@@ -66,7 +101,7 @@ export default defineEventHandler(async (event) => {
   if (response_type !== "code") return { error: "仅支持 code 模式" };
   const client = await getOAuthClient(client_id as string);
   if (!client) return { error: "非法客户端" };
-  if (!client.redirect_uris.includes(redirect_uri as string))
+  if (!isAllowedRedirectUri(client.redirect_uris, redirect_uri as string))
     return { error: "非法回调地址" };
 
   // 读取会话：过期/伪造/缺失/已被吊销统一视为未登录
