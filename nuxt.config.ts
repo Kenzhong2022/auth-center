@@ -26,9 +26,14 @@ export default defineNuxtConfig({
     // 自动导入所有组件
     importStyle: "scss",
   },
-  // 部署到 Netlify（dev 不受影响）
+  // 部署到 Cloudflare Worker（dev 不受影响）
   nitro: {
-    preset: "netlify",
-    compressPublicAssets: true,
+    preset: "cloudflare_module",
+    cloudflare: {
+      // 构建时生成 .output/server/wrangler.json（含 nodejs_compat 等绑定信息）
+      deployConfig: true,
+      // 启用 Node 兼容层：process.env / Buffer 等，@upstash/redis、@neondatabase/serverless、jose 需要
+      nodeCompat: true,
+    },
   },
 });

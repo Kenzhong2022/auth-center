@@ -1,0 +1,29 @@
+/**
+ * Cloudflare Worker 部署配置（参考 cf-nuxt-chat）
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	// Worker 名称：需与线上 auth-center.997260348.workers.dev 保持一致，deploy 才会更新同一个 Worker
+	"name": "auth-center",
+	// Nitro cloudflare_module 产物入口（默认输出到 .output，未覆盖 output.dir）
+	"main": "./.output/server/index.mjs",
+	"compatibility_date": "2026-09-16",
+	// Node 兼容层：process.env / Buffer 等，@upstash/redis、@neondatabase/serverless、jose 依赖
+	"compatibility_flags": ["nodejs_compat"],
+	// 静态资源交给 Workers Assets（Nuxt SSR 之外的 client 产物）
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./.output/public/"
+	},
+	"observability": {
+		"enabled": true
+	}
+	/**
+	 * 环境变量 / Secrets 不写在这里（敏感值不进版本库）：
+	 *   - 非敏感：Dashboard → Settings → Variables，或本文件 "vars"
+	 *   - 敏感：wrangler secret put <NAME>，或 Dashboard → Secrets
+	 * 需要配置：NUXT_DATABASE_URL / UPSTASH_REDIS_REST_URL /
+	 *          UPSTASH_REDIS_REST_TOKEN / NUXT_JWT_ACCESS_SECRET / NUXT_JWT_REFRESH_SECRET
+	 */
+}
