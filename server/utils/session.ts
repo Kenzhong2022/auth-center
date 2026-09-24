@@ -1,6 +1,6 @@
 // 认证中心会话工具：登录态写入 Redis，支持服务端吊销
 // server/utils/session.ts
-import { redis } from "./redis";
+import { useRedis } from "./redis";
 import {
   verifyAccessToken,
   ACCESS_TOKEN_TTL_SECONDS,
@@ -19,6 +19,7 @@ const SESSION_KEY_PREFIX = "auth:session:";
 export async function saveSession(
   token: string,
 ): Promise<VerifiedTokenPayload> {
+  const redis = useRedis();
   const payload = await verifyAccessToken(token);
   await redis.set(
     `${SESSION_KEY_PREFIX}${payload.jti}`,
@@ -35,6 +36,7 @@ export async function saveSession(
  *              供 authorize 在验签之后做二次确认
  */
 export async function isSessionActive(jti: string): Promise<boolean> {
+  const redis = useRedis();
   return (await redis.exists(`${SESSION_KEY_PREFIX}${jti}`)) === 1;
 }
 
@@ -42,5 +44,6 @@ export async function isSessionActive(jti: string): Promise<boolean> {
  * 吊销会话（登出、封号、改密时调用）
  */
 export async function revokeSession(jti: string): Promise<void> {
+  const redis = useRedis();
   await redis.del(`${SESSION_KEY_PREFIX}${jti}`);
 }

@@ -1,7 +1,7 @@
 // 授权码工具：生成、存储、兑换、撤销
 // server/utils/oauthCode.ts
 import { v4 as uuidv4 } from "uuid";
-import { redis } from "./redis";
+import { useRedis } from "./redis";
 import type { RoleCode } from "~~/types/database/user.type";
 
 /**
@@ -45,6 +45,7 @@ export async function saveAuthCode(
   code: string,
   data: OAuthCode,
 ): Promise<void> {
+  const redis = useRedis();
   const key = `${AUTH_CODE_KEY_PREFIX}${code}`;
   await redis.set(key, JSON.stringify(data), {
     ex: AUTH_CODE_EXPIRE_SECONDS,
@@ -63,6 +64,7 @@ export async function redeemAuthCode(
   clientId: string,
   redirectUri: string,
 ): Promise<OAuthCode | null> {
+  const redis = useRedis();
   const key = `${AUTH_CODE_KEY_PREFIX}${code}`;
   const raw = await redis.get(key);
   if (!raw) return null; // 授权码不存在
@@ -81,5 +83,6 @@ export async function redeemAuthCode(
  * @throws 撤销失败时抛出异常
  */
 export async function revokeAuthCode(code: string): Promise<void> {
+  const redis = useRedis();
   await redis.del(`${AUTH_CODE_KEY_PREFIX}${code}`);
 }

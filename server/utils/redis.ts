@@ -1,12 +1,22 @@
 import { Redis } from "@upstash/redis";
 
-// 从环境变量读取配置
-const url = process.env.UPSTASH_REDIS_REST_URL;
-const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+// 懒加载单例：Worker 冷启动时 env 尚未注入（首次请求时才可用），
+// 必须延迟到请求内再创建，顶层创建会永远拿到 undefined
+let redisClient: Redis | null = null;
 
-if (!url || !token) {
-  console.warn("[Redis] 环境变量未配置，Redis 功能将不可用");
+// 获取 Redis 单例客户端（仅在请求上下文中调用）
+export function useRedis(): Redis {
+  if (!redisClient) {
+    const config = useRuntimeConfig();
+    const url = config.upstashRedisRestUrl;
+    const token = config.upstashRedisRestToken;
+
+    if (!url || !token) {
+      throw new Error(
+        "[Redis] NUXT_UPSTASH_REDIS_REST_URL / NUXT_UPSTASH_REDIS_REST_TOKEN 未配置",
+      );
+    }
+    redisClient = new Redis({ url, token });
+  }
+  return redisClient;
 }
-
-// 导出单例客户端
-export const redis = new Redis({ url, token });

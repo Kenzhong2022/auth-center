@@ -9,6 +9,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     // 私有配置：只有服务端能访问，客户端永远看不到
     databaseUrl: process.env.NUXT_DATABASE_URL,
+    upstashRedisRestUrl: process.env.NUXT_UPSTASH_REDIS_REST_URL,
+    upstashRedisRestToken: process.env.NUXT_UPSTASH_REDIS_REST_TOKEN,
 
     // 公共配置：客户端也能访问（这里不要放任何敏感信息！）
     public: {

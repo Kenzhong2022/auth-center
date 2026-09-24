@@ -1,6 +1,6 @@
 // 刷新令牌工具：基于 Redis 存储与撤销
 // server/utils/refreshToken.ts
-import { redis } from "./redis";
+import { useRedis } from "./redis";
 
 /**
  * 刷新令牌记录
@@ -22,6 +22,7 @@ export async function saveRefreshToken(
   refreshToken: string,
   record: RefreshTokenRecord,
 ): Promise<void> {
+  const redis = useRedis();
   const key = `${REFRESH_TOKEN_KEY_PREFIX}${refreshToken}`;
   await redis.set(key, JSON.stringify(record), {
     ex: REFRESH_TOKEN_EXPIRE_SECONDS,
@@ -35,6 +36,7 @@ export async function saveRefreshToken(
 export async function getRefreshToken(
   refreshToken: string,
 ): Promise<RefreshTokenRecord | null> {
+  const redis = useRedis();
   const key = `${REFRESH_TOKEN_KEY_PREFIX}${refreshToken}`;
   const raw = await redis.get(key);
   if (!raw) return null;
@@ -43,5 +45,6 @@ export async function getRefreshToken(
 
 /** 撤销刷新令牌（登出/刷新时调用） */
 export async function revokeRefreshToken(refreshToken: string): Promise<void> {
+  const redis = useRedis();
   await redis.del(`${REFRESH_TOKEN_KEY_PREFIX}${refreshToken}`);
 }
